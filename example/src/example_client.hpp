@@ -31,7 +31,8 @@ public:
 
     auto run() -> void;
 
-    auto dispatch_action(Action const& action) -> ExampleClient&;
+    auto dispatch_action(Action const& action) -> void;
+    auto poke_clients() -> void;
 
 private:
     ltb::net::AsyncClient<ChatRoom> async_client_;

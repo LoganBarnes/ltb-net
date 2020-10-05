@@ -35,8 +35,8 @@ std::ostream& operator<<(std::ostream& os, const ClientTag& tag) {
     case ClientTagLabel::ConnectionChange:
         os << "ClientTagLabel::ConnectionChange";
         break;
-    case ClientTagLabel::UnaryFinished:
-        os << "ClientTagLabel::UnaryFinished";
+    case ClientTagLabel::Rpc:
+        os << "ClientTagLabel::Rpc";
         break;
     }
     return os << '}';

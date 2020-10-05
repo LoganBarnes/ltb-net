@@ -17,6 +17,7 @@
 #include "example_server.hpp"
 
 #include <grpc++/server_builder.h>
+#include <thread>
 
 namespace ltb::example {
 
@@ -29,9 +30,14 @@ ExampleService::DispatchAction(grpc::ServerContext* /*context*/, Action const* r
     return grpc::Status::OK;
 }
 
-grpc::Status
-ExampleService::PokeUser(grpc::ServerContext* context, grpc::ServerReader<User::Id>* reader, util::Result* response) {
-    return Service::PokeUser(context, reader, response);
+grpc::Status ExampleService::PokeUser(grpc::ServerContext* /*context*/,
+                                      grpc::ServerReader<User::Id>* reader,
+                                      util::Result*                 response) {
+    User::Id request;
+    while (reader->Read(&request)) {
+    }
+    response->mutable_success();
+    return grpc::Status::OK;
 }
 
 grpc::Status ExampleService::SearchMessages(grpc::ServerContext*                 context,

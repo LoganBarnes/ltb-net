@@ -20,50 +20,27 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 // ///////////////////////////////////////////////////////////////////////////////////////
-#pragma once
-
-// standard
-#include <memory>
-#include <ostream>
-#include <unordered_map>
+#include "async_client_data.hpp"
 
 namespace ltb::net {
 
-enum class ClientTagLabel {
-    ConnectionChange,
-    Rpc,
-};
+AsyncClientData::AsyncClientData(grpc::CompletionQueue& completion_queue, std::weak_ptr<grpc::Channel> channel)
+    : completion_queue_(completion_queue), channel_(std::move(channel)) {}
 
-enum class ServerTagLabel {
-    NewRpc,
-    Writing,
-    Done,
-};
+AsyncClientData::~AsyncClientData() = default;
 
-struct ClientTag {
-    void*          data;
-    ClientTagLabel label;
+auto AsyncClientData::item_queued() -> bool {
+    return item_queued_;
+}
 
-    ClientTag(void* d, ClientTagLabel l);
-};
+AsyncClientRpcCallData::AsyncClientRpcCallData(grpc::CompletionQueue&       completion_queue,
+                                               std::weak_ptr<grpc::Channel> channel,
+                                               StatusCallback               status_callback,
+                                               ErrorCallback                error_callback)
+    : AsyncClientData(completion_queue, std::move(channel)),
+      status_callback_(status_callback),
+      error_callback_(error_callback) {}
 
-struct ServerTag {
-    void*          data;
-    ServerTagLabel label;
+AsyncClientRpcCallData::~AsyncClientRpcCallData() = default;
 
-    ServerTag(void* d, ServerTagLabel l);
-};
-
-std::ostream& operator<<(std::ostream& os, const ClientTag& tag);
-std::ostream& operator<<(std::ostream& os, const ServerTag& tag);
-
-namespace detail {
-
-void* make_tag(void* data, ClientTagLabel label, std::unordered_map<void*, std::unique_ptr<ClientTag>>* tags);
-void* make_tag(void* data, ServerTagLabel label, std::unordered_map<void*, std::unique_ptr<ServerTag>>* tags);
-
-ClientTag get_tag(void* key, std::unordered_map<void*, std::unique_ptr<ClientTag>>* tags);
-ServerTag get_tag(void* key, std::unordered_map<void*, std::unique_ptr<ServerTag>>* tags);
-
-} // namespace detail
 } // namespace ltb::net

@@ -68,6 +68,25 @@ auto ExampleClient::run() -> void {
     *action.mutable_send_message() = "Test message";
     dispatch_action(action);
 
+    std::cout << "EC: Press enter to poke a client" << std::endl;
+    std::cin.ignore();
+    poke_clients();
+    //    auto writer = poke_clients();
+    User::Id user_id;
+    user_id.set_value("1");
+    //    writer.Write(user_id, );
+
+    //    std::cout << "EC: Press enter to poke another client" << std::endl;
+    //    std::cin.ignore();
+    //    user_id.set_value("2");
+    //    //    writer.Write(user_id);
+    //
+    //    std::cout << "EC: Press enter to poke the last client" << std::endl;
+    //    std::cin.ignore();
+    //    user_id.set_value("3");
+    //    //    writer.Write(user_id);
+    //    //    writer.Finish();
+
     std::cout << "EC: Press enter to shut down" << std::endl;
     std::cin.ignore();
     std::cout << "EC: Shutting down..." << std::endl;
@@ -78,7 +97,7 @@ auto ExampleClient::run() -> void {
     std::cout << "EC: Exit" << std::endl;
 }
 
-auto ExampleClient::dispatch_action(Action const& action) -> ExampleClient& {
+auto ExampleClient::dispatch_action(Action const& action) -> void {
     async_client_.unary_rpc<util::Result>(
         &ChatRoom::Stub::AsyncDispatchAction,
         action,
@@ -88,7 +107,17 @@ auto ExampleClient::dispatch_action(Action const& action) -> ExampleClient& {
                       << std::endl;
         },
         [](ltb::util::Error error) { std::cout << "DispatchAction error: " << error.error_message() << std::endl; });
-    return *this;
+}
+
+auto ExampleClient::poke_clients() -> void {
+    async_client_.client_stream_rpc<util::Result>(
+        &ChatRoom::Stub::AsyncPokeUser,
+        [](util::Result result) { std::cout << "DispatchAction response: " << result.ShortDebugString() << std::endl; },
+        [](grpc::Status status) {
+            std::cout << "DispatchAction status: " << (status.ok() ? "OK" : "ERROR: " + status.error_message())
+                      << std::endl;
+        },
+        [](ltb::util::Error error) { std::cout << "DispatchAction error: " << error.error_message() << std::endl; });
 }
 
 } // namespace ltb::example
