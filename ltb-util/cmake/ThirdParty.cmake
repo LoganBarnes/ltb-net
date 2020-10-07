@@ -75,6 +75,7 @@ if (NOT ltb_range_v3_dl_POPULATED)
     target_compile_options(ltb_external_range_v3
             INTERFACE
             $<$<COMPILE_LANG_AND_ID:CXX,MSVC>:/permissive->
+            $<$<COMPILE_LANG_AND_ID:CXX,MSVC>:/std:c++latest>
             )
 endif (NOT ltb_range_v3_dl_POPULATED)
 
