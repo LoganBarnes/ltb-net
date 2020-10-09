@@ -48,7 +48,7 @@ public:
 
     template <typename Request, typename Response>
     using UnaryCallPtr = auto (Service::Stub::*)(grpc::ClientContext*, Request const&, grpc::CompletionQueue*)
-                             -> std::unique_ptr<grpc_impl::ClientAsyncResponseReader<Response>>;
+    -> std::unique_ptr<grpc_impl::ClientAsyncResponseReader<Response>>;
 
     /// \brief Blocks the current thread.
     auto run() -> void;
@@ -184,7 +184,7 @@ auto AsyncClient<Service>::shutdown() -> void {
 
 template <typename Service>
 auto AsyncClient<Service>::on_state_change(StateChangeCallback callback, CallImmediately call_immediately)
-    -> AsyncClient& {
+-> AsyncClient& {
     std::lock_guard channel_lock(channel_mutex_);
     data_.state_change_callback = callback;
     if (call_immediately == CallImmediately::Yes) {
