@@ -118,7 +118,7 @@ AsyncClient<Service>::AsyncClient(grpc::Server& interprocess_server) {
 template <typename Service>
 auto AsyncClient<Service>::run() -> void {
 
-    void* raw_tag = {};
+    void* raw_tag                = {};
     bool  completed_successfully = {};
 
     while (completion_queue_.Next(&raw_tag, &completed_successfully)) {
