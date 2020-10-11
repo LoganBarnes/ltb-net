@@ -24,7 +24,6 @@ syntax = "proto3";
 
 package ltb.example;
 
-import "google/protobuf/empty.proto";
 import "google/protobuf/wrappers.proto";
 import "chat/user.proto";
 import "chat/message.proto";
@@ -44,22 +43,23 @@ service ChatRoom {
     rpc GetMessages (stream ChatMessage.Id) returns (stream ChatMessageResult);
 
     // Long running server streaming call
-    rpc GetUpdates (google.protobuf.Empty) returns (stream Update);
+    rpc GetUpdates (User.Id) returns (stream Update);
 
     // Long running client side and bidirectional streaming not supported
 }
 
 message Action {
     oneof action {
-        string send_message = 1;
+        NewMessage send_message = 1;
         UserInfo change_client_info = 2;
     }
 }
 
 message Update {
     oneof update {
-        UserMessage new_message = 1;
-        User client_update = 2;
-        User.Id poked_by = 3;
+        User.Id assigned_user_id = 1;
+        UserMessage new_message = 2;
+        User client_update = 3;
+        User.Id poked_by = 4;
     }
 }

@@ -23,20 +23,12 @@
 #pragma once
 
 // project
-#include "ltb/util/error.hpp"
-
-// external
-#include <grpc++/server_context.h>
+#include "async_server_writers.hpp"
 
 // standard
 #include <functional>
 
 namespace ltb::net {
-
-//using StatusCallback = std::function<void(grpc::Status)>;
-//using ErrorCallback  = std::function<void(ltb::util::Error)>;
-//template <typename Response>
-//using ResponseCallback = std::function<void(Response)>;
 
 template <typename Service, typename Request, typename Response>
 using UnaryAsyncRpc = void (Service::*)(grpc::ServerContext*,
@@ -46,41 +38,70 @@ using UnaryAsyncRpc = void (Service::*)(grpc::ServerContext*,
                                         grpc::ServerCompletionQueue*,
                                         void* tag);
 
+namespace detail {
+
 struct AsyncServerRpcCallData {
     virtual ~AsyncServerRpcCallData() = default;
 
-    virtual auto process_callbacks() -> void = 0;
+    virtual auto process_callbacks() -> std::unique_ptr<AsyncServerRpcCallData> = 0;
 };
 
-template <typename Request, typename Response>
-struct AsyncClientUnaryCallData : public AsyncServerRpcCallData {
+template <typename Service, typename Request, typename Response>
+struct AsyncServerUnaryCallData : public AsyncServerRpcCallData {
 
-    template <typename Service>
-    explicit AsyncClientUnaryCallData(Service&                                  service,
-                                      UnaryAsyncRpc<Service, Request, Response> unary_call,
-                                      grpc::ServerCompletionQueue*              queue);
+    explicit AsyncServerUnaryCallData(
+        Service&                                                                    service,
+        UnaryAsyncRpc<Service, Request, Response>                                   unary_call,
+        grpc::ServerCompletionQueue*                                                queue,
+        typename ServerCallbacks<Service, Request, Response>::UnaryResponseCallback on_response);
 
-    ~AsyncClientUnaryCallData() override = default;
+    ~AsyncServerUnaryCallData() override = default;
 
-    auto process_callbacks() -> void override;
+    auto process_callbacks() -> std::unique_ptr<AsyncServerRpcCallData> override;
 
-    grpc::ServerContext                            context;
-    Request                                        request;
-    grpc_impl::ServerAsyncResponseWriter<Response> response;
+private:
+    Service&                                                                    service_;
+    UnaryAsyncRpc<Service, Request, Response>                                   unary_call_;
+    grpc::ServerCompletionQueue*                                                queue_;
+    Request                                                                     request_;
+    std::shared_ptr<AsyncUnaryWriterData<Response>>                             writer_data_;
+    typename ServerCallbacks<Service, Request, Response>::UnaryResponseCallback on_response_;
+    int                                                                         i_ = 0;
 };
 
-template <typename Request, typename Response>
-template <typename Service>
-AsyncClientUnaryCallData<Request, Response>::AsyncClientUnaryCallData(
-    Service& service, UnaryAsyncRpc<Service, Request, Response> unary_call, grpc::ServerCompletionQueue* queue) {
-    (service.*unary_call)(&context, &request, &response, queue, queue, this);
+template <typename Service, typename Request, typename Response>
+AsyncServerUnaryCallData<Service, Request, Response>::AsyncServerUnaryCallData(
+    Service&                                                                    service,
+    UnaryAsyncRpc<Service, Request, Response>                                   unary_call,
+    grpc::ServerCompletionQueue*                                                queue,
+    typename ServerCallbacks<Service, Request, Response>::UnaryResponseCallback on_response)
+    : service_(service),
+      unary_call_(unary_call),
+      queue_(queue),
+      writer_data_(std::make_shared<AsyncUnaryWriterData<Response>>()),
+      on_response_(std::move(on_response)) {
+    (service.*unary_call)(&writer_data_->context, &request_, &writer_data_->response, queue, queue, this);
 }
 
-template <typename Request, typename Response>
-auto AsyncClientUnaryCallData<Request, Response>::process_callbacks() -> void {
-    //    if (response_callback) {
-    //        response_callback(response);
-    //    }
+template <typename Service, typename Request, typename Response>
+auto AsyncServerUnaryCallData<Service, Request, Response>::process_callbacks()
+    -> std::unique_ptr<AsyncServerRpcCallData> {
+
+    ++i_;
+
+    if (i_ == 1) {
+        if (on_response_) {
+            on_response_(request_, AsyncUnaryWriter<Response>{writer_data_, this});
+        }
+
+        return std::make_unique<AsyncServerUnaryCallData<Service, Request, Response>>(service_,
+                                                                                      unary_call_,
+                                                                                      queue_,
+                                                                                      on_response_);
+    }
+
+    return nullptr;
 }
 
+} // namespace detail
 } // namespace ltb::net

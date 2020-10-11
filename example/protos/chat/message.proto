@@ -41,6 +41,11 @@ message UserMessage {
     ChatMessage.Id message_id = 2;
 }
 
+message NewMessage {
+    User.Id client_id = 1;
+    string message = 2;
+}
+
 message ChatMessageResult {
     oneof result {
         ChatMessage message = 1;
