@@ -23,7 +23,7 @@
 #pragma once
 
 // project
-#include "async_server_writers.hpp"
+#include "async_server_unary_writer.hpp"
 
 // external
 #include <grpc++/server.h>
@@ -35,8 +35,8 @@ namespace ltb::net {
 
 template <typename Service, typename Request, typename Response>
 struct ServerCallbacks {
-    using UnaryConnect    = std::function<void(Request const&, AsyncUnaryWriter<Response>)>;
-    using UnaryDisconnect = std::function<void(ClientID const&)>;
+    using UnaryConnect = std::function<void(Request const&, AsyncServerUnaryWriter<Response>)>;
+    using Disconnect   = std::function<void(ClientID const&)>;
 };
 
 namespace detail {

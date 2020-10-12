@@ -50,10 +50,19 @@ public:
     auto shutdown() -> void;
 
     template <typename BaseService, typename Request, typename Response>
-    auto unary_rpc(UnaryAsyncRpc<BaseService, Request, Response>                             unary_call_ptr,
-                   typename ServerCallbacks<BaseService, Request, Response>::UnaryConnect    on_connect,
-                   typename ServerCallbacks<BaseService, Request, Response>::UnaryDisconnect on_disconnect = nullptr)
+    auto register_rpc(UnaryAsyncRpc<BaseService, Request, Response>                          unary_call_ptr,
+                      typename ServerCallbacks<BaseService, Request, Response>::UnaryConnect on_connect,
+                      typename ServerCallbacks<BaseService, Request, Response>::Disconnect   on_disconnect = nullptr)
         -> void;
+
+    template <typename BaseService, typename Request, typename Response>
+    auto register_rpc(ClientStreamAsyncRpc<BaseService, Request, Response> call_ptr) -> void;
+
+    template <typename BaseService, typename Request, typename Response>
+    auto register_rpc(ServerStreamAsyncRpc<BaseService, Request, Response> call_ptr) -> void;
+
+    template <typename BaseService, typename Request, typename Response>
+    auto register_rpc(BidirectionalStreamAsyncRpc<BaseService, Request, Response> call_ptr) -> void;
 
 private:
     std::mutex                                   mutex_;
@@ -135,10 +144,10 @@ auto AsyncServer<Service>::shutdown() -> void {
 
 template <typename Service>
 template <typename BaseService, typename Request, typename Response>
-auto AsyncServer<Service>::unary_rpc(
-    UnaryAsyncRpc<BaseService, Request, Response>                             unary_call_ptr,
-    typename ServerCallbacks<BaseService, Request, Response>::UnaryConnect    on_connect,
-    typename ServerCallbacks<BaseService, Request, Response>::UnaryDisconnect on_disconnect) -> void {
+auto AsyncServer<Service>::register_rpc(
+    UnaryAsyncRpc<BaseService, Request, Response>                          unary_call_ptr,
+    typename ServerCallbacks<BaseService, Request, Response>::UnaryConnect on_connect,
+    typename ServerCallbacks<BaseService, Request, Response>::Disconnect   on_disconnect) -> void {
     std::lock_guard lock(mutex_);
 
     static_assert(std::is_base_of<BaseService, Service>::value, "BaseService must be a base class of Service");
@@ -153,6 +162,31 @@ auto AsyncServer<Service>::unary_rpc(
 
     auto raw_unary_call_data = unary_call_data.get();
     rpc_call_data_.emplace(raw_unary_call_data, std::move(unary_call_data));
+}
+
+template <typename Service>
+template <typename BaseService, typename Request, typename Response>
+auto AsyncServer<Service>::register_rpc(ClientStreamAsyncRpc<BaseService, Request, Response> /*call_ptr*/) -> void {
+    std::lock_guard lock(mutex_);
+
+    static_assert(std::is_base_of<BaseService, Service>::value, "BaseService must be a base class of Service");
+}
+
+template <typename Service>
+template <typename BaseService, typename Request, typename Response>
+auto AsyncServer<Service>::register_rpc(ServerStreamAsyncRpc<BaseService, Request, Response> /*call_ptr*/) -> void {
+    std::lock_guard lock(mutex_);
+
+    static_assert(std::is_base_of<BaseService, Service>::value, "BaseService must be a base class of Service");
+}
+
+template <typename Service>
+template <typename BaseService, typename Request, typename Response>
+auto AsyncServer<Service>::register_rpc(BidirectionalStreamAsyncRpc<BaseService, Request, Response> /*call_ptr*/)
+    -> void {
+    std::lock_guard lock(mutex_);
+
+    static_assert(std::is_base_of<BaseService, Service>::value, "BaseService must be a base class of Service");
 }
 
 } // namespace ltb::net
