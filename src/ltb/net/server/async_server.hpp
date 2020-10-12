@@ -23,8 +23,8 @@
 #pragma once
 
 // project
-#include "async_server_data.hpp"
 #include "async_server_rpc.hpp"
+#include "async_unary_call_data.hpp"
 #include "ltb/net/tagger.hpp"
 
 // external
@@ -50,10 +50,9 @@ public:
     auto shutdown() -> void;
 
     template <typename BaseService, typename Request, typename Response>
-    auto register_rpc(UnaryAsyncRpc<BaseService, Request, Response>                          unary_call_ptr,
-                      typename ServerCallbacks<BaseService, Request, Response>::UnaryConnect on_connect,
-                      typename ServerCallbacks<BaseService, Request, Response>::Disconnect   on_disconnect = nullptr)
-        -> void;
+    auto register_rpc(UnaryAsyncRpc<BaseService, Request, Response>             unary_call_ptr,
+                      typename ServerCallbacks<Request, Response>::UnaryConnect on_connect,
+                      DisconnectCallback                                        on_disconnect = nullptr) -> void;
 
     template <typename BaseService, typename Request, typename Response>
     auto register_rpc(ClientStreamAsyncRpc<BaseService, Request, Response> call_ptr) -> void;
@@ -72,7 +71,7 @@ private:
 
     ServerTagger tagger_;
 
-    std::unordered_map<void*, std::unique_ptr<detail::AsyncServerRpc>> rpc_call_data_;
+    std::unordered_map<void*, std::unique_ptr<detail::AsyncServerRpc<Service>>> rpc_call_data_;
 };
 
 template <typename Service>
@@ -108,7 +107,7 @@ auto AsyncServer<Service>::run() -> void {
             switch (tag.label) {
 
             case ServerTagLabel::NewRpc: {
-                auto* rpc = static_cast<detail::AsyncServerRpc*>(tag.data);
+                auto* rpc = static_cast<detail::AsyncServerRpc<Service>*>(tag.data);
                 {
                     auto  new_rpc     = rpc->clone();
                     auto* new_rpc_raw = new_rpc.get();
@@ -122,7 +121,7 @@ auto AsyncServer<Service>::run() -> void {
             } break;
 
             case ServerTagLabel::Done: {
-                auto* rpc = static_cast<detail::AsyncServerRpc*>(tag.data);
+                auto* rpc = static_cast<detail::AsyncServerRpc<Service>*>(tag.data);
                 rpc->invoke_disconnect_callback();
                 rpc_call_data_.erase(rpc);
             } break;
@@ -144,21 +143,20 @@ auto AsyncServer<Service>::shutdown() -> void {
 
 template <typename Service>
 template <typename BaseService, typename Request, typename Response>
-auto AsyncServer<Service>::register_rpc(
-    UnaryAsyncRpc<BaseService, Request, Response>                          unary_call_ptr,
-    typename ServerCallbacks<BaseService, Request, Response>::UnaryConnect on_connect,
-    typename ServerCallbacks<BaseService, Request, Response>::Disconnect   on_disconnect) -> void {
+auto AsyncServer<Service>::register_rpc(UnaryAsyncRpc<BaseService, Request, Response>             unary_call_ptr,
+                                        typename ServerCallbacks<Request, Response>::UnaryConnect on_connect,
+                                        DisconnectCallback on_disconnect) -> void {
     std::lock_guard lock(mutex_);
 
     static_assert(std::is_base_of<BaseService, Service>::value, "BaseService must be a base class of Service");
 
     auto unary_call_data
-        = std::make_unique<detail::AsyncServerUnaryCallData<BaseService, Request, Response>>(service_,
+        = std::make_unique<detail::AsyncServerUnaryCallData<BaseService, Request, Response>>(tagger_,
+                                                                                             *completion_queue_,
+                                                                                             std::move(on_disconnect),
+                                                                                             service_,
                                                                                              unary_call_ptr,
-                                                                                             completion_queue_.get(),
-                                                                                             tagger_,
-                                                                                             std::move(on_connect),
-                                                                                             std::move(on_disconnect));
+                                                                                             std::move(on_connect));
 
     auto raw_unary_call_data = unary_call_data.get();
     rpc_call_data_.emplace(raw_unary_call_data, std::move(unary_call_data));

@@ -1,5 +1,5 @@
 // ///////////////////////////////////////////////////////////////////////////////////////
-// LTB Geometry Visualization Server
+// LTB Networking
 // Copyright (c) 2020 Logan Barnes - All Rights Reserved
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -23,7 +23,8 @@
 #pragma once
 
 // project
-#include "async_server_unary_writer.hpp"
+#include "async_server_callbacks.hpp"
+#include "ltb/net/tagger.hpp"
 
 // external
 #include <grpc++/server.h>
@@ -31,28 +32,41 @@
 // standard
 #include <memory>
 
-namespace ltb::net {
+namespace ltb::net::detail {
 
-template <typename Service, typename Request, typename Response>
-struct ServerCallbacks {
-    using UnaryConnect = std::function<void(Request const&, AsyncServerUnaryWriter<Response>)>;
-    using Disconnect   = std::function<void(ClientID const&)>;
-};
-
-namespace detail {
-
-struct AsyncServerRpc {
+template <typename Service>
+class AsyncServerRpc {
+public:
+    explicit AsyncServerRpc(ServerTagger&                tagger,
+                            grpc::ServerCompletionQueue& queue,
+                            Service&                     service,
+                            DisconnectCallback           on_disconnect);
     virtual ~AsyncServerRpc() = default;
 
     virtual auto clone() -> std::unique_ptr<AsyncServerRpc> = 0;
     virtual auto invoke_connection_callback() -> void       = 0;
-    virtual auto invoke_disconnect_callback() -> void       = 0;
+
+    auto invoke_disconnect_callback() -> void;
+
+protected:
+    ServerTagger&                tagger_;
+    grpc::ServerCompletionQueue& completion_queue_;
+    Service&                     service_;
+    DisconnectCallback           on_disconnect_;
 };
 
-template <typename Response>
-struct AsyncServerStreamWriteRpc : virtual AsyncServerRpc {
-    ~AsyncServerStreamWriteRpc() override = default;
-};
+template <typename Service>
+AsyncServerRpc<Service>::AsyncServerRpc(ServerTagger&                tagger,
+                                        grpc::ServerCompletionQueue& queue,
+                                        Service&                     service,
+                                        DisconnectCallback           on_disconnect)
+    : tagger_(tagger), completion_queue_(queue), service_(service), on_disconnect_(std::move(on_disconnect)) {}
 
-} // namespace detail
-} // namespace ltb::net
+template <typename Service>
+auto AsyncServerRpc<Service>::invoke_disconnect_callback() -> void {
+    if (on_disconnect_) {
+        on_disconnect_(this);
+    }
+}
+
+} // namespace ltb::net::detail
