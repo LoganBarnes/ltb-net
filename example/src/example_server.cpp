@@ -51,9 +51,8 @@ grpc::Status ExampleService::GetMessages(grpc::ServerContext*                   
     return Service::GetMessages(context, stream);
 }
 
-grpc::Status ExampleService::GetUpdates(grpc::ServerContext*           context,
-                                        google::protobuf::Empty const* request,
-                                        grpc::ServerWriter<Update>*    writer) {
+grpc::Status
+ExampleService::GetUpdates(grpc::ServerContext* context, User::Id const* request, grpc::ServerWriter<Update>* writer) {
     return Service::GetUpdates(context, request, writer);
 }
 

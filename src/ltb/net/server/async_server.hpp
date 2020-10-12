@@ -24,6 +24,8 @@
 
 // project
 #include "async_server_data.hpp"
+#include "async_server_rpc.hpp"
+#include "ltb/net/tagger.hpp"
 
 // external
 #include <grpc++/server.h>
@@ -47,9 +49,10 @@ public:
 
     auto shutdown() -> void;
 
-    template <typename Response, typename Request>
-    auto unary_rpc(UnaryAsyncRpc<Service, Request, Response>                                   unary_call_ptr,
-                   typename ServerCallbacks<Service, Request, Response>::UnaryResponseCallback on_response = nullptr)
+    template <typename BaseService, typename Request, typename Response>
+    auto unary_rpc(UnaryAsyncRpc<BaseService, Request, Response>                             unary_call_ptr,
+                   typename ServerCallbacks<BaseService, Request, Response>::UnaryConnect    on_connect,
+                   typename ServerCallbacks<BaseService, Request, Response>::UnaryDisconnect on_disconnect = nullptr)
         -> void;
 
 private:
@@ -58,7 +61,9 @@ private:
     std::unique_ptr<grpc::ServerCompletionQueue> completion_queue_;
     std::unique_ptr<grpc::Server>                server_;
 
-    std::unordered_map<detail::AsyncServerRpcCallData*, std::unique_ptr<detail::AsyncServerRpcCallData>> rpc_call_data_;
+    ServerTagger tagger_;
+
+    std::unordered_map<void*, std::unique_ptr<detail::AsyncServerRpc>> rpc_call_data_;
 };
 
 template <typename Service>
@@ -67,7 +72,6 @@ AsyncServer<Service>::AsyncServer(std::string const& host_address) {
 
     grpc::ServerBuilder builder;
     if (!host_address.empty()) {
-        // std::cout << "S: " << host_address << std::endl;
         builder.AddListeningPort(host_address, grpc::InsecureServerCredentials());
     }
     builder.RegisterService(&service_);
@@ -88,17 +92,36 @@ auto AsyncServer<Service>::run() -> void {
     while (completion_queue_->Next(&raw_tag, &completed_successfully)) {
         std::lock_guard lock(mutex_);
 
-        auto* call_data = static_cast<detail::AsyncServerRpcCallData*>(raw_tag);
+        auto tag = tagger_.get_tag(raw_tag);
+        std::cout << "S: " << (completed_successfully ? "Success: " : "Failure: ") << tag << std::endl;
 
         if (completed_successfully) {
-            if (auto new_call_data = call_data->process_callbacks()) {
-                auto* raw_new_call_data = new_call_data.get();
-                rpc_call_data_.emplace(raw_new_call_data, std::move(new_call_data));
-            } else {
-                rpc_call_data_.erase(call_data);
-            }
+            switch (tag.label) {
+
+            case ServerTagLabel::NewRpc: {
+                auto* rpc = static_cast<detail::AsyncServerRpc*>(tag.data);
+                {
+                    auto  new_rpc     = rpc->clone();
+                    auto* new_rpc_raw = new_rpc.get();
+                    rpc_call_data_.emplace(new_rpc_raw, std::move(new_rpc));
+                }
+                rpc->invoke_connection_callback();
+
+            } break;
+
+            case ServerTagLabel::Writing: {
+            } break;
+
+            case ServerTagLabel::Done: {
+                auto* rpc = static_cast<detail::AsyncServerRpc*>(tag.data);
+                rpc->invoke_disconnect_callback();
+                rpc_call_data_.erase(rpc);
+            } break;
+
+            } // end switch
+
         } else {
-            rpc_call_data_.erase(call_data);
+            rpc_call_data_.erase(tag.data);
         }
     }
 }
@@ -111,17 +134,22 @@ auto AsyncServer<Service>::shutdown() -> void {
 }
 
 template <typename Service>
-template <typename Response, typename Request>
+template <typename BaseService, typename Request, typename Response>
 auto AsyncServer<Service>::unary_rpc(
-    UnaryAsyncRpc<Service, Request, Response>                                   unary_call_ptr,
-    typename ServerCallbacks<Service, Request, Response>::UnaryResponseCallback on_response) -> void {
+    UnaryAsyncRpc<BaseService, Request, Response>                             unary_call_ptr,
+    typename ServerCallbacks<BaseService, Request, Response>::UnaryConnect    on_connect,
+    typename ServerCallbacks<BaseService, Request, Response>::UnaryDisconnect on_disconnect) -> void {
     std::lock_guard lock(mutex_);
 
+    static_assert(std::is_base_of<BaseService, Service>::value, "BaseService must be a base class of Service");
+
     auto unary_call_data
-        = std::make_unique<detail::AsyncServerUnaryCallData<Service, Request, Response>>(service_,
-                                                                                         unary_call_ptr,
-                                                                                         completion_queue_.get(),
-                                                                                         std::move(on_response));
+        = std::make_unique<detail::AsyncServerUnaryCallData<BaseService, Request, Response>>(service_,
+                                                                                             unary_call_ptr,
+                                                                                             completion_queue_.get(),
+                                                                                             tagger_,
+                                                                                             std::move(on_connect),
+                                                                                             std::move(on_disconnect));
 
     auto raw_unary_call_data = unary_call_data.get();
     rpc_call_data_.emplace(raw_unary_call_data, std::move(unary_call_data));

@@ -93,7 +93,6 @@ auto state_notification_deadline() -> std::chrono::time_point<std::chrono::syste
 template <typename Service>
 AsyncClient<Service>::AsyncClient(std::string const& host_address) {
     std::lock_guard channel_lock(channel_mutex_);
-    // std::cout << "C: " << host_address << std::endl;
     data_.channel = grpc::CreateChannel(host_address, grpc::InsecureChannelCredentials());
     data_.stub    = Service::NewStub(data_.channel);
 
@@ -123,7 +122,8 @@ auto AsyncClient<Service>::run() -> void {
 
     while (completion_queue_.Next(&raw_tag, &completed_successfully)) {
         std::lock_guard channel_lock(channel_mutex_);
-        auto            tag = data_.tagger.get_tag(raw_tag);
+
+        auto tag = data_.tagger.get_tag(raw_tag);
         std::cout << "C: " << (completed_successfully ? "Success: " : "Failure: ") << tag << std::endl;
 
         switch (tag.label) {

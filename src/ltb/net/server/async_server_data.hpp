@@ -23,7 +23,9 @@
 #pragma once
 
 // project
+#include "async_server_rpc.hpp"
 #include "async_server_writers.hpp"
+#include "ltb/net/tagger.hpp"
 
 // standard
 #include <functional>
@@ -40,67 +42,84 @@ using UnaryAsyncRpc = void (Service::*)(grpc::ServerContext*,
 
 namespace detail {
 
-struct AsyncServerRpcCallData {
-    virtual ~AsyncServerRpcCallData() = default;
-
-    virtual auto process_callbacks() -> std::unique_ptr<AsyncServerRpcCallData> = 0;
-};
-
 template <typename Service, typename Request, typename Response>
-struct AsyncServerUnaryCallData : public AsyncServerRpcCallData {
+struct AsyncServerUnaryCallData : public AsyncServerRpc {
 
     explicit AsyncServerUnaryCallData(
-        Service&                                                                    service,
-        UnaryAsyncRpc<Service, Request, Response>                                   unary_call,
-        grpc::ServerCompletionQueue*                                                queue,
-        typename ServerCallbacks<Service, Request, Response>::UnaryResponseCallback on_response);
+        Service&                                                              service,
+        UnaryAsyncRpc<Service, Request, Response>                             unary_call,
+        grpc::ServerCompletionQueue*                                          queue,
+        ServerTagger&                                                         tagger,
+        typename ServerCallbacks<Service, Request, Response>::UnaryConnect    on_connect,
+        typename ServerCallbacks<Service, Request, Response>::UnaryDisconnect on_disconnect);
 
     ~AsyncServerUnaryCallData() override = default;
 
-    auto process_callbacks() -> std::unique_ptr<AsyncServerRpcCallData> override;
+    auto clone() -> std::unique_ptr<AsyncServerRpc> override;
+    auto invoke_connection_callback() -> void override;
+    auto invoke_disconnect_callback() -> void override;
 
 private:
-    Service&                                                                    service_;
-    UnaryAsyncRpc<Service, Request, Response>                                   unary_call_;
-    grpc::ServerCompletionQueue*                                                queue_;
-    Request                                                                     request_;
-    std::shared_ptr<AsyncUnaryWriterData<Response>>                             writer_data_;
-    typename ServerCallbacks<Service, Request, Response>::UnaryResponseCallback on_response_;
-    int                                                                         i_ = 0;
+    Service&                                                              service_;
+    UnaryAsyncRpc<Service, Request, Response>                             unary_call_;
+    grpc::ServerCompletionQueue*                                          queue_;
+    ServerTagger&                                                         tagger_;
+    Request                                                               request_;
+    std::shared_ptr<AsyncUnaryWriterData<Response>>                       writer_data_;
+    typename ServerCallbacks<Service, Request, Response>::UnaryConnect    on_connect_;
+    typename ServerCallbacks<Service, Request, Response>::UnaryDisconnect on_disconnect_;
 };
 
 template <typename Service, typename Request, typename Response>
 AsyncServerUnaryCallData<Service, Request, Response>::AsyncServerUnaryCallData(
-    Service&                                                                    service,
-    UnaryAsyncRpc<Service, Request, Response>                                   unary_call,
-    grpc::ServerCompletionQueue*                                                queue,
-    typename ServerCallbacks<Service, Request, Response>::UnaryResponseCallback on_response)
+    Service&                                                              service,
+    UnaryAsyncRpc<Service, Request, Response>                             unary_call,
+    grpc::ServerCompletionQueue*                                          queue,
+    ServerTagger&                                                         tagger,
+    typename ServerCallbacks<Service, Request, Response>::UnaryConnect    on_connect,
+    typename ServerCallbacks<Service, Request, Response>::UnaryDisconnect on_disconnect)
     : service_(service),
       unary_call_(unary_call),
       queue_(queue),
+      tagger_(tagger),
       writer_data_(std::make_shared<AsyncUnaryWriterData<Response>>()),
-      on_response_(std::move(on_response)) {
-    (service.*unary_call)(&writer_data_->context, &request_, &writer_data_->response, queue, queue, this);
+      on_connect_(std::move(on_connect)),
+      on_disconnect_(std::move(on_disconnect)) {
+
+    (service.*unary_call)(&writer_data_->context,
+                          &request_,
+                          &writer_data_->response,
+                          queue,
+                          queue,
+                          tagger_.make_tag(this, ServerTagLabel::NewRpc));
 }
 
 template <typename Service, typename Request, typename Response>
-auto AsyncServerUnaryCallData<Service, Request, Response>::process_callbacks()
-    -> std::unique_ptr<AsyncServerRpcCallData> {
+auto AsyncServerUnaryCallData<Service, Request, Response>::clone() -> std::unique_ptr<AsyncServerRpc> {
+    return std::make_unique<AsyncServerUnaryCallData<Service, Request, Response>>(service_,
+                                                                                  unary_call_,
+                                                                                  queue_,
+                                                                                  tagger_,
+                                                                                  on_connect_,
+                                                                                  on_disconnect_);
+}
 
-    ++i_;
-
-    if (i_ == 1) {
-        if (on_response_) {
-            on_response_(request_, AsyncUnaryWriter<Response>{writer_data_, this});
-        }
-
-        return std::make_unique<AsyncServerUnaryCallData<Service, Request, Response>>(service_,
-                                                                                      unary_call_,
-                                                                                      queue_,
-                                                                                      on_response_);
+template <typename Service, typename Request, typename Response>
+auto AsyncServerUnaryCallData<Service, Request, Response>::invoke_connection_callback() -> void {
+    auto tag = tagger_.make_tag(this, ServerTagLabel::Done);
+    if (on_connect_) {
+        on_connect_(request_, AsyncUnaryWriter<Response>{writer_data_, tag});
+    } else {
+        writer_data_->response.FinishWithError(grpc::Status{grpc::StatusCode::UNIMPLEMENTED, "RPC not implemented."},
+                                               tag);
     }
+}
 
-    return nullptr;
+template <typename Service, typename Request, typename Response>
+auto AsyncServerUnaryCallData<Service, Request, Response>::invoke_disconnect_callback() -> void {
+    if (on_disconnect_) {
+        on_disconnect_(this);
+    }
 }
 
 } // namespace detail

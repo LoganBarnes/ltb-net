@@ -1,5 +1,5 @@
 // ///////////////////////////////////////////////////////////////////////////////////////
-// LTB Networking
+// LTB Geometry Visualization Server
 // Copyright (c) 2020 Logan Barnes - All Rights Reserved
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -22,44 +22,37 @@
 // ///////////////////////////////////////////////////////////////////////////////////////
 #pragma once
 
-// generated
-#include <protos/chat/chat_room.grpc.pb.h>
+// project
+#include "async_server_writers.hpp"
 
 // external
 #include <grpc++/server.h>
 
-namespace ltb::example {
+// standard
+#include <memory>
 
-class ExampleService : public ChatRoom::Service {
-public:
-    ~ExampleService() override;
+namespace ltb::net {
 
-    grpc::Status DispatchAction(grpc::ServerContext* context, Action const* request, util::Result* response) override;
-
-    grpc::Status
-    PokeUser(grpc::ServerContext* context, grpc::ServerReader<User::Id>* reader, util::Result* response) override;
-
-    grpc::Status SearchMessages(grpc::ServerContext*                 context,
-                                google::protobuf::StringValue const* request,
-                                grpc::ServerWriter<UserMessage>*     writer) override;
-
-    grpc::Status GetMessages(grpc::ServerContext*                                         context,
-                             grpc::ServerReaderWriter<ChatMessageResult, ChatMessage_Id>* stream) override;
-
-    grpc::Status
-    GetUpdates(grpc::ServerContext* context, User::Id const* request, grpc::ServerWriter<Update>* writer) override;
+template <typename Service, typename Request, typename Response>
+struct ServerCallbacks {
+    using UnaryConnect    = std::function<void(Request const&, AsyncUnaryWriter<Response>)>;
+    using UnaryDisconnect = std::function<void(ClientID const&)>;
 };
 
-class ExampleServer {
-public:
-    explicit ExampleServer(std::string const& host_address = "");
+namespace detail {
 
-    auto grpc_server() -> grpc::Server&;
-    auto shutdown() -> void;
+struct AsyncServerRpc {
+    virtual ~AsyncServerRpc() = default;
 
-private:
-    ExampleService                service_;
-    std::unique_ptr<grpc::Server> server_;
+    virtual auto clone() -> std::unique_ptr<AsyncServerRpc> = 0;
+    virtual auto invoke_connection_callback() -> void       = 0;
+    virtual auto invoke_disconnect_callback() -> void       = 0;
 };
 
-} // namespace ltb::example
+template <typename Response>
+struct AsyncServerStreamWriteRpc : virtual AsyncServerRpc {
+    ~AsyncServerStreamWriteRpc() override = default;
+};
+
+} // namespace detail
+} // namespace ltb::net

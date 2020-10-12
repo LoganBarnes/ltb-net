@@ -41,22 +41,20 @@ struct AsyncUnaryWriterData {
 
 } // namespace detail
 
+using ClientID = void*;
+
 template <typename Response>
 struct AsyncUnaryWriter {
 public:
     explicit AsyncUnaryWriter(std::weak_ptr<detail::AsyncUnaryWriterData<Response>> data, void* tag);
 
-    auto cancel() -> void;
-    auto finish(Response response, grpc::Status status) -> void;
+    auto               cancel() -> void;
+    auto               finish(Response response, grpc::Status status) -> void;
+    [[nodiscard]] auto client_id() const -> ClientID const&;
 
 private:
     std::weak_ptr<detail::AsyncUnaryWriterData<Response>> data_;
     void*                                                 tag_;
-};
-
-template <typename Service, typename Request, typename Response>
-struct ServerCallbacks {
-    using UnaryResponseCallback = std::function<void(Request const&, AsyncUnaryWriter<Response>)>;
 };
 
 template <typename Response>
@@ -75,6 +73,11 @@ auto AsyncUnaryWriter<Response>::finish(Response response, grpc::Status status) 
     if (auto data = data_.lock()) {
         data->response.Finish(response, status, tag_);
     }
+}
+
+template <typename Response>
+auto AsyncUnaryWriter<Response>::client_id() const -> ClientID const& {
+    return tag_;
 }
 
 } // namespace ltb::net

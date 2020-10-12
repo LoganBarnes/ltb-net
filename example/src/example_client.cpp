@@ -71,7 +71,8 @@ auto ExampleClient::run() -> void {
     std::cout << "EC: Sending message..." << std::endl;
 
     Action action;
-    *action.mutable_send_message() = "Test message";
+    action.mutable_send_message()->mutable_client_id()->set_value("Tmp_client_id");
+    action.mutable_send_message()->set_message("Test message");
     dispatch_action(action);
 
     std::cout << "EC: Press enter to shut down" << std::endl;
