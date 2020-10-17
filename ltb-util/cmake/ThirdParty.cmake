@@ -35,10 +35,6 @@ FetchContent_Declare(ltb_doctest_dl
         GIT_TAG 2.3.6
         )
 
-### Threads ###
-set(THREADS_PREFER_PTHREAD_FLAG ON)
-find_package(Threads REQUIRED)
-
 ### Expected ###
 FetchContent_GetProperties(ltb_expected_dl)
 if (NOT ltb_expected_dl_POPULATED)
