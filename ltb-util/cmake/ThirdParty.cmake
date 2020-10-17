@@ -28,7 +28,7 @@ FetchContent_Declare(ltb_expected_dl
         )
 FetchContent_Declare(ltb_range_v3_dl
         GIT_REPOSITORY https://github.com/ericniebler/range-v3.git
-        GIT_TAG 0.10.0
+        GIT_TAG 0.11.0
         )
 FetchContent_Declare(ltb_doctest_dl
         GIT_REPOSITORY https://github.com/onqtam/doctest.git

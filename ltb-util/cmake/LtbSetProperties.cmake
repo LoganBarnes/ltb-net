@@ -30,7 +30,7 @@ function(ltb_set_properties target cxx_standard)
             CXX_EXTENSIONS OFF
             POSITION_INDEPENDENT_CODE ON
             # CUDA flags
-            CUDA_STANDARD 17
+            CUDA_STANDARD 14
             CUDA_STANDARD_REQUIRED ON
             CUDA_EXTENSIONS OFF
             CUDA_SEPARABLE_COMPILATION ON
