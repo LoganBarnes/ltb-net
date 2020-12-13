@@ -26,6 +26,12 @@
 #############################
 if (NOT LTB_CONFIGURED)
 
+    function(ltb_configure_file input_file output_file)
+        file(READ ${input_file} INPUT_FILE_STR)
+        string(CONFIGURE "${INPUT_FILE_STR}" CONFIGURED_FILE_STR)
+        file(GENERATE OUTPUT ${output_file} CONTENT "${CONFIGURED_FILE_STR}")
+    endfunction()
+
     option(LTB_BUILD_TESTS "Build unit tests" OFF)
     option(LTB_USE_DEV_FLAGS "Compile with all the flags" OFF)
     option(LTB_USE_CUDA "Enable CUDA features if available" ON)
@@ -121,8 +127,14 @@ if (NOT LTB_CONFIGURED)
         set(SLASH "/")
     endif ()
 
-    configure_file(${CMAKE_CURRENT_LIST_DIR}/../src/ltb_paths.hpp.in ${CMAKE_BINARY_DIR}/generated/ltb/paths.hpp)
-    configure_file(${CMAKE_CURRENT_LIST_DIR}/../src/ltb_config.hpp.in ${CMAKE_BINARY_DIR}/generated/ltb/config.hpp)
+    ltb_configure_file(
+            ${CMAKE_CURRENT_LIST_DIR}/../src/ltb_paths.hpp.in
+            ${CMAKE_BINARY_DIR}/generated/ltb/paths.hpp
+    )
+    ltb_configure_file(
+            ${CMAKE_CURRENT_LIST_DIR}/../src/ltb_config.hpp.in
+            ${CMAKE_BINARY_DIR}/generated/ltb/config.hpp
+    )
 
     set(LTB_CONFIGURED TRUE)
 endif (NOT LTB_CONFIGURED)
