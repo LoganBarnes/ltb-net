@@ -64,6 +64,10 @@ if (NOT LTB_CONFIGURED)
 
     if (MSVC)
         add_definitions(-DNOMINMAX -D_CRT_SECURE_NO_WARNINGS) # silly microsoft
+
+        if (${BUILD_SHARED_LIBS})
+            set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS 1)
+        endif ()
     endif ()
 
     string(CONCAT LTB_SANITIZE_THREAD_FLAG
