@@ -28,7 +28,7 @@ if (NOT LTB_CONFIGURED)
     set(LTB_CONFIGURED TRUE)
 
     # TODO explain this.
-    function(ltb_configure_file input_file output_file tmp_target target)
+    function(ltb_configure_file_with_generators input_file output_file tmp_target target)
         file(READ ${input_file} INPUT_FILE_STR)
         string(CONFIGURE "${INPUT_FILE_STR}" CONFIGURED_FILE_STR)
         file(GENERATE OUTPUT ${output_file}_$<CONFIG> CONTENT "${CONFIGURED_FILE_STR}")
