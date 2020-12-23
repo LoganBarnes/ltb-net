@@ -25,11 +25,24 @@
 ### Project Configuration ###
 #############################
 if (NOT LTB_CONFIGURED)
+    set(LTB_CONFIGURED TRUE)
 
-    function(ltb_configure_file input_file output_file)
+    # TODO explain this.
+    function(ltb_configure_file input_file output_file tmp_target target)
         file(READ ${input_file} INPUT_FILE_STR)
         string(CONFIGURE "${INPUT_FILE_STR}" CONFIGURED_FILE_STR)
-        file(GENERATE OUTPUT ${output_file} CONTENT "${CONFIGURED_FILE_STR}")
+        file(GENERATE OUTPUT ${output_file}_$<CONFIG> CONTENT "${CONFIGURED_FILE_STR}")
+
+        add_custom_command(
+                COMMAND ${CMAKE_COMMAND} "-E" "copy_if_different" "${output_file}_$<CONFIG>" "${output_file}"
+                VERBATIM
+                PRE_BUILD
+                OUTPUT ${output_file}
+                DEPENDS ${output_file}_$<CONFIG>
+        )
+
+        add_custom_target(${tmp_target} DEPENDS ${output_file})
+        add_dependencies(${target} ${tmp_target})
     endfunction()
 
     option(LTB_BUILD_TESTS "Build unit tests" OFF)
@@ -127,14 +140,13 @@ if (NOT LTB_CONFIGURED)
         set(SLASH "/")
     endif ()
 
-    ltb_configure_file(
+    configure_file(
             ${CMAKE_CURRENT_LIST_DIR}/../src/ltb_paths.hpp.in
             ${CMAKE_BINARY_DIR}/generated/ltb/paths.hpp
     )
-    ltb_configure_file(
+    configure_file(
             ${CMAKE_CURRENT_LIST_DIR}/../src/ltb_config.hpp.in
             ${CMAKE_BINARY_DIR}/generated/ltb/config.hpp
     )
 
-    set(LTB_CONFIGURED TRUE)
 endif (NOT LTB_CONFIGURED)
